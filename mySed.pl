@@ -6,6 +6,7 @@ use Scalar::Util qw(looks_like_number);
 $total = $#ARGV + 1;
 
 #check for STDIN
+
 $str = "";
 if (!-t STDIN) {
   $str = do { local $/; <STDIN> };
@@ -19,9 +20,13 @@ if($total == 0 || ($total == 1 && $str eq "")){
 
 #split the given command
 $sed = $ARGV[0];
+getParts();
+
 if($str eq ""){
   $file = $ARGV[1];
 }
+
+=pod
 @parts = split(/\//, $sed, -1);
 print("\n@parts\n");
 print("\n$#parts\n");
@@ -30,8 +35,9 @@ if($#parts < 2 || $#parts > 3){
   print("Error -2- in command\n");
   exit;
 }
+=cut
 
-switch($parts[0]){
+switch($firstPart){
    case "s"          { sFunction() }
    else              { print("Error -3- in command\n"); exit; }
 }
@@ -46,36 +52,87 @@ sub sFunction
       $line = checkEnd($line);
 
       print $line;
-      #print $fh2 $line;
     }
     close($fh);
-    #close($fh2);
-    #rename "temp", $file;
   }
 
   #STDIN
   else{
     $line = $str;
-    $line =~ s/$parts[1]/$parts[2]/g;
+    $line = checkEnd($line);
     print $line;
   }
 }
 
-sub checkEnd(){
+sub checkEnd()
+{
   my( $line ) = @_;
-  $parts[3] = lc $parts[3];
-  if($#parts > 2 && $parts[3] eq "g"){
-    $line =~ s/$parts[1]/$parts[2]/g;
+
+  switch(lc $lastPart){
+     case ""           { $line =~ s/$middlePart1/$middlePart2/;  }
+     case "g"          { $line =~ s/$middlePart1/$middlePart2/g; }
+     case "i"          { $line =~ s/$middlePart1/$middlePart2/i; }
+     case ["gi", "ig"] { $line =~ s/$middlePart1/$middlePart2/gi;}
+     case (/^\d+$/)    { $line =numberCase($line); }
+     else              { print("unKnown\n"); exit; }
   }
-  elsif($#parts > 2 && $parts[3] eq "i"){
-    $line =~ s/$parts[1]/$parts[2]/i;
-  }
-  elsif($#parts > 2 && ($parts[3] eq "ig" || $parts[3] eq "gi")){
-    $line =~ s/$parts[1]/$parts[2]/ig;
+
+  return $line
+}
+
+sub getParts
+{
+    $slash_count = $sed =~ tr/\///;
+    if($slash_count < 3){
+      print("Error -5- in command\n");
+      exit;
+    }
+    $firstPos = index($sed, '/');
+    $lastPos = rindex($sed, '/');
+
+    $firstPart = substr $sed, 0, $firstPos;
+
+    if($slash_count == 3){
+      $middlePos = index($sed,'/', $firstPos+1);
+    }
+    else{
+      $middlePos = index($sed, '/\/', $firstPos+1);
+    }
+
+    $middlePart1 = substr $sed, $firstPos+1, $middlePos-2;
+
+    if($slash_count == 3){
+      $middlePart2 = substr $sed, $middlePos+1, $lastPos-$middlePos-1;
+    }
+    else{
+      $middlePart2 = substr $sed, $middlePos+1, $lastPos-$middlePos-1;
+      $middlePart2 =~ tr/\\//d;
+    }
+
+    $lastPart = substr $sed, $lastPos+1, length $sed;
+
+    #print("\nf=$firstPart   m1=$middlePart1   m2=$middlePart2   l=$lastPart\n");
+
+    if($firstPart eq "" || $middlePart1 eq ""){
+      print("Error -6- in command\n");
+      exit;
+    }
+}
+
+sub numberCase()
+{
+  my( $line ) = @_;
+  $expCount = () = $line =~ /$middlePart1/g;
+  $newLine = "";
+  $index = 0 - length $middlePart1;
+  if($expCount >= $lastPart){
+    for($i = 1; $i <= $lastPart; $i += 1){
+      $index = index($line,"aa", $index+length $middlePart1);
+    }
+    $newLine = (substr $line, 0, $index).$middlePart2.(substr $line, $index + 1 + length $middlePart1, length $line);
+    return $newLine;
   }
   else{
-    #$line =~ s/$parts[1]/$parts[2]/;
-    $line =~ s/aa/ss/;
+    return $line;
   }
-  return $line
 }

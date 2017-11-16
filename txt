@@ -7,4 +7,4 @@ tin Timberlake, Title 545, Price $6.30
 7, John Lennon, Title 271, Price $7.90
 aa AA bb aa aa
 AA aa bb AA
-/usr/bin
+/usr/bin  aa  /usr/bin
