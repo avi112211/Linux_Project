@@ -1,0 +1,13 @@
+#!/bin/bash
+
+file=$1
+key=""
+
+for (( i=1; i<=8 ; i++ ))
+do
+  rand=$((RANDOM%256))
+  c=$(printf \\$(printf '%03o' $rand))
+  key=$key$c
+done
+
+echo $key>$file
