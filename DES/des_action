@@ -1,8 +1,5 @@
 #!/bin/bash
 
-action=$1
-file_key=$2
-#txt_fiel=$3
 PC_1=(  57   49    41   33    25    17    9
         1   58    50   42    34    26   18
         10    2    59   51    43    35   27
@@ -12,11 +9,55 @@ PC_1=(  57   49    41   33    25    17    9
         14    6    61   53    45    37   29
         21   13     5   28    20    12    4)
 
+LEFT_SHIFT=(0 1 1 2 2 2 2 2 2 1 2 2 2 2 2 2 1)
+
+function string_to_bin()
+{
+  echo $1 | perl -lpe '$_=unpack"B*"'
+}
+
+function get_bit_from_string_representation()
+{
+  str=$1
+  location=$2
+  #echo $location
+  str_b=$(string_to_bin $str)
+  bit=$(expr substr $str_b $location 1)
+  echo $bit
+}
+
+function left_shift_key_by_num()
+{
+  key=$1
+  amount=$2
+
+  start=$(expr $amount + 1)
+  num=$(expr 28 - $amount)
+
+  pre=$(expr substr $key $start $num)
+  post=$(expr substr $key 1 $amount)
+
+  echo $pre$post
+}
+
+action=$1
+file_key=$2
+
 key=`cat $file_key`
 
-
-
+#Original key permutation according to PC-1
+key_p=
 for (( i=0; i<56 ; i++ ))
 do
-        echo ${PC_1[$i]}
+  index=${PC_1[$i]}
+  bit=$(get_bit_from_string_representation $key $index)
+  key_p=$key_p$bit
 done
+
+#echo key_p=$key_p
+c0=$(expr substr $key_p 1 28)
+d0=$(expr substr $key_p 29 28)
+
+echo 1=${LEFT_SHIFT[1]}
+c1=$(left_shift_key_by_num $c0 ${LEFT_SHIFT[1]})
+echo c1=$c1
