@@ -87,14 +87,30 @@ FINAL_P=(16   7  20  21
          19  13  30   6
          22  11   4  25)
 
+IP_1=(40     8   48    16    56   24    64   32
+      39     7   47    15    55   23    63   31
+      38     6   46    14    54   22    62   30
+      37     5   45    13    53   21    61   29
+      36     4   44    12    52   20    60   28
+      35     3   43    11    51   19    59   27
+      34     2   42    10    50   18    58   26
+      33     1   41     9    49   17    57   25)
+
 function string_to_bin()
 {
-  echo $1 | perl -lpe '$_=unpack"B*"'
+  echo $1 | perl -pe '$_=unpack"B*"'
+}
+
+function string_w_spaces_to_bin()
+{
+  eval str="$1"
+  echo -n "${str}" | perl -pe '$_=unpack"B*"'
 }
 
 function bin_to_string()
 {
-  echo $1 | perl -lpe '$_=pack"B*",$_'
+  eval bin="$1"
+  echo -n "${bin}" | perl -pe '$_=pack"B*",$_'
 }
 
 function decimal_to_bin()
@@ -178,6 +194,7 @@ function get_sbox_value()
   row=$1
   col=$2
   s_box=("$@")
+  #unstting row and col params from s_box arry:
   unset s_box[0]
   unset s_box[1]
   s_box=("${s_box[@]}")
@@ -187,10 +204,30 @@ function get_sbox_value()
   echo $val
 }
 
+function padding_message_with_spaces()
+{
+  eval str="$1"
+  str_len=${#str}
+
+  mod=$(( $str_len % 8 ))
+  if [[ $mod -ne 0 ]]; then
+    pad=$(( 8 - $mod ))
+
+    for (( i=0 ; i<$pad ; i++))
+    do
+      str+=" "
+    done
+  fi
+  echo "${str}"
+}
+
 action=$1
 file_key=$2
+input_file=$3
+out_file=$4
 
 key=`cat $file_key`
+echo -n >$out_file
 
 #Original key permutation according to PC-1
 key_p=
@@ -238,109 +275,157 @@ done
 #echo ${k_perm_arr[@]}
 
 #############Starting to encrypt/decrypt the message###################################
-message=0000000100100011010001010110011110001001101010111100110111101111
+file_str=`cat $input_file`
+echo file_str=$file_str
+file_str_len=${#file_str}
+echo file_str_len=$file_str_len
+message=$(string_w_spaces_to_bin "\${file_str}")
 echo message=$message
+file_str=$(padding_message_with_spaces "\${file_str}")
+file_str_len=${#file_str}
 
-m_len=${#message}
+if [[ $(( $file_str_len % 8 )) -ne 0 ]]; then
+  echo padding operation failed.
+  exit 1
+fi
 
-#Initial permutation of message block according to IP
-m_ip=
-for (( i=0; i<64 ; i++ ))
+num_blocks=$(( $file_str_len / 8 ))
+echo num_blocks=$num_blocks
+
+for (( block=1 ; block<=$num_blocks ; block++ ))
 do
-  index=${IP[$i]}
-  bit=$(get_bit_from_binary_representation $message $index)
-  m_ip=$m_ip$bit
-done
+  echo processing block \#$block out of $num_blocks...
+  block_index=$(( $(( $block - 1 )) * 8 ))
+  #curr_message="$(expr substr "$file_str" $block_index 8)"
+  curr_message="${file_str:block_index:8}"
+  echo curr_message=$curr_message
+  echo len_crr_message=${#curr_message}
+  message=$(string_w_spaces_to_bin "\${curr_message}")
+  echo message=$message
+  echo m_len=${#message}
 
-l0=$(expr substr $m_ip 1 32)
-r0=$(expr substr $m_ip 33 32)
-
-l_arr=($l0)
-r_arr=($r0)
-
-#starting 16 iterations of function f.
-#for (( iter=1; iter<=16 ; iter++ ))
-#do
-iter=1
-  previous=$(expr $iter - 1)
-  #Expanding 32-bit r according to E_SELECTION to 48-bit
-  er=
-  for (( k=0; k<48 ; k++ ))
+  #Initial permutation of message block according to IP
+  m_ip=
+  for (( i=0; i<64 ; i++ ))
   do
-    index=${E_SELECTION[$k]}
-    bit=$(get_bit_from_binary_representation ${r_arr[$previous]} $index)
-    er=$er$bit
+    index=${IP[$i]}
+    bit=$(get_bit_from_binary_representation $message $index)
+    m_ip=$m_ip$bit
   done
-#done
 
-#er_str=$(bin_to_string $er)
-xor_r=$(( 2#${k_perm_arr[$iter]} ^ 2#$er ))
-xor_r=$(decimal_to_bin $xor_r 48)
+  l0=$(expr substr $m_ip 1 32)
+  r0=$(expr substr $m_ip 33 32)
 
-sb=
-#S-BOX1:
-b=$(expr substr $xor_r 1 6)
-b_row=$(get_row_for_sbox $b)
-b_col=$(get_column_for_sbox $b)
-s_output=$(get_sbox_value $b_row $b_col ${S1[@]})
-sb=$sb$s_output
-#S-BOX2:
-b=$(expr substr $xor_r 7 6)
-b_row=$(get_row_for_sbox $b)
-b_col=$(get_column_for_sbox $b)
-s_output=$(get_sbox_value $b_row $b_col ${S2[@]})
-sb=$sb$s_output
-#S-BOX3:
-b=$(expr substr $xor_r 13 6)
-b_row=$(get_row_for_sbox $b)
-b_col=$(get_column_for_sbox $b)
-s_output=$(get_sbox_value $b_row $b_col ${S3[@]})
-sb=$sb$s_output
-#S-BOX4:
-b=$(expr substr $xor_r 19 6)
-b_row=$(get_row_for_sbox $b)
-b_col=$(get_column_for_sbox $b)
-s_output=$(get_sbox_value $b_row $b_col ${S4[@]})
-sb=$sb$s_output
-#S-BOX5:
-b=$(expr substr $xor_r 25 6)
-b_row=$(get_row_for_sbox $b)
-b_col=$(get_column_for_sbox $b)
-s_output=$(get_sbox_value $b_row $b_col ${S5[@]})
-sb=$sb$s_output
-#S-BOX6:
-b=$(expr substr $xor_r 31 6)
-b_row=$(get_row_for_sbox $b)
-b_col=$(get_column_for_sbox $b)
-s_output=$(get_sbox_value $b_row $b_col ${S6[@]})
-sb=$sb$s_output
-#S-BOX7:
-b=$(expr substr $xor_r 37 6)
-b_row=$(get_row_for_sbox $b)
-b_col=$(get_column_for_sbox $b)
-s_output=$(get_sbox_value $b_row $b_col ${S7[@]})
-sb=$sb$s_output
-#S-BOX8:
-b=$(expr substr $xor_r 43 6)
-b_row=$(get_row_for_sbox $b)
-b_col=$(get_column_for_sbox $b)
-s_output=$(get_sbox_value $b_row $b_col ${S8[@]})
-sb=$sb$s_output
+  l_arr=($l0)
+  r_arr=($r0)
 
-#Permutation of 32-bit right sided digested bits according to FINAL_P
-f=
-for (( i=0 ; i<32 ; i++ ))
-{
-  index=${FINAL_P[$i]}
-  bit=$(get_bit_from_binary_representation $sb $index)
-  f=$f$bit
-}
+  #starting 16 iterations of function f.
+  for (( iter=1; iter<=16 ; iter++ ))
+  do
+  #iter=1
+    previous=$(expr $iter - 1)
+    #Expanding 32-bit r according to E_SELECTION to 48-bit
+    er=
+    for (( k=0; k<48 ; k++ ))
+    do
+      index=${E_SELECTION[$k]}
+      bit=$(get_bit_from_binary_representation ${r_arr[$previous]} $index)
+      er=$er$bit
+    done
 
-echo $sb
-echo $f
-echo ${l_arr[$previous]}
-#xor f with previous l block => right next block
-r_next=$(( 2#${l_arr[$previous]} ^ 2#$f ))
-r_next=$(decimal_to_bin $r_next 32)
+    #choosing the current key according to the action performed
+    #TO DO : add if to determine the right key
+    if [[ $action == "-e" ]]; then
+      curr_key=${k_perm_arr[$iter]}
+    else
+      curr_key=${k_perm_arr[$(( 17 - $iter ))]}
+    fi
 
-echo $r_next
+    xor_r=$(( 2#$curr_key ^ 2#$er ))
+    xor_r=$(decimal_to_bin $xor_r 48)
+
+    sb=
+    #S-BOX1:
+    b=$(expr substr $xor_r 1 6)
+    b_row=$(get_row_for_sbox $b)
+    b_col=$(get_column_for_sbox $b)
+    s_output=$(get_sbox_value $b_row $b_col ${S1[@]})
+    sb=$sb$s_output
+    #S-BOX2:
+    b=$(expr substr $xor_r 7 6)
+    b_row=$(get_row_for_sbox $b)
+    b_col=$(get_column_for_sbox $b)
+    s_output=$(get_sbox_value $b_row $b_col ${S2[@]})
+    sb=$sb$s_output
+    #S-BOX3:
+    b=$(expr substr $xor_r 13 6)
+    b_row=$(get_row_for_sbox $b)
+    b_col=$(get_column_for_sbox $b)
+    s_output=$(get_sbox_value $b_row $b_col ${S3[@]})
+    sb=$sb$s_output
+    #S-BOX4:
+    b=$(expr substr $xor_r 19 6)
+    b_row=$(get_row_for_sbox $b)
+    b_col=$(get_column_for_sbox $b)
+    s_output=$(get_sbox_value $b_row $b_col ${S4[@]})
+    sb=$sb$s_output
+    #S-BOX5:
+    b=$(expr substr $xor_r 25 6)
+    b_row=$(get_row_for_sbox $b)
+    b_col=$(get_column_for_sbox $b)
+    s_output=$(get_sbox_value $b_row $b_col ${S5[@]})
+    sb=$sb$s_output
+    #S-BOX6:
+    b=$(expr substr $xor_r 31 6)
+    b_row=$(get_row_for_sbox $b)
+    b_col=$(get_column_for_sbox $b)
+    s_output=$(get_sbox_value $b_row $b_col ${S6[@]})
+    sb=$sb$s_output
+    #S-BOX7:
+    b=$(expr substr $xor_r 37 6)
+    b_row=$(get_row_for_sbox $b)
+    b_col=$(get_column_for_sbox $b)
+    s_output=$(get_sbox_value $b_row $b_col ${S7[@]})
+    sb=$sb$s_output
+    #S-BOX8:
+    b=$(expr substr $xor_r 43 6)
+    b_row=$(get_row_for_sbox $b)
+    b_col=$(get_column_for_sbox $b)
+    s_output=$(get_sbox_value $b_row $b_col ${S8[@]})
+    sb=$sb$s_output
+
+    #Permutation of 32-bit right sided digested bits according to FINAL_P
+    f=
+    for (( i=0 ; i<32 ; i++ ))
+    {
+      index=${FINAL_P[$i]}
+      bit=$(get_bit_from_binary_representation $sb $index)
+      f=$f$bit
+    }
+
+    #xor f with previous l block => right next block
+    r_next=$(( 2#${l_arr[$previous]} ^ 2#$f ))
+    r_next=$(decimal_to_bin $r_next 32)
+
+    r_arr+=($r_next)
+    l_arr+=(${r_arr[$previous]})
+
+  done
+
+  #final reversed processed block permutation according to IP-1
+  rl16=${r_arr[16]}${l_arr[16]}
+  proc_m=
+  for (( i=0 ; i<64 ; i++ ))
+  do
+    index=${IP_1[$i]}
+    bit=$(get_bit_from_binary_representation $rl16 $index)
+    proc_m=$proc_m$bit
+  done
+
+  echo proc_m=$proc_m
+  proc_m_str=$(bin_to_string $proc_m)
+  echo proc_m_str=$proc_m_str
+  echo proc_m_str_len=${proc_m_str}
+  printf "$proc_m_str">>$out_file
+
+done
