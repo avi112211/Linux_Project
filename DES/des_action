@@ -104,13 +104,80 @@ function string_to_bin()
 function string_w_spaces_to_bin()
 {
   eval str="$1"
-  echo -n "${str}" | perl -pe '$_=unpack"B*"'
+  echo string_w_spaces_to_bin_str=$str>>temp
+  str_tr=${str/"\0"/""}
+  echo string_w_spaces_to_bin_str_tr=$str_tr>>temp
+
+  bin=$(echo -n "${str_tr}" | perl -pe '$_=unpack"B*"')
+
+  str_len=$(printf "$str" | wc -c)
+  echo str=$str>>temp
+  echo str_len=$str_len >>temp
+  for (( i=0 ; i<$str_len ; i++ ))
+  do
+    ch=${str:i:2}
+    echo ch=$ch >>temp
+    if [[ $ch == "\0" ]]; then
+      start=$(( $i * 8 ))
+      bin=${bin:0:start}"00000000"${bin:start}
+    fi
+  done
+
+  printf "$bin"
 }
 
 function bin_to_string()
 {
   eval bin="$1"
-  echo -n "${bin}" | perl -pe '$_=pack"B*",$_'
+  str=$(echo -n "${bin}" | perl -pe '$_=pack"B*",$_')
+
+  d=${bin: -8} #get the last char by binary represntation.
+  echo d=$d >> temp
+  if [[ $(bin_to_decimal $d) -eq 10 ]]; then
+    len=${#str}
+    echo len=$len >> temp
+    for (( i=$len ; i < 8 ; i++ ))
+    do
+      str+=$'\n'
+    done
+  fi
+
+  echo $str
+}
+
+function bin_to_string_save_to_file()
+{
+  eval bin="$1"
+  file=$2
+  str=$(echo -n "${bin}" | perl -pe '$_=pack"B*",$_')
+
+  #handling newline char in the last place of the string:
+  d=${bin: -8} #get the last char by binary represntation.
+  echo d=$d >> temp
+  if [[ $(bin_to_decimal $d) -eq 10 ]]; then
+    len=${#str}
+    echo len=$len >> temp
+    for (( i=$len ; i < 8 ; i++ ))
+    do
+      str+=$'\n'
+      echo str_len=${#str} >>temp
+    done
+  fi
+
+  bin_len=${#bin}
+  for (( i=0 ; i<8 ; i++ ))
+  do
+    place=$(( i * 8))
+    d="${bin: place : 8 }"
+    echo d=$d >>temp
+    if [[ $(bin_to_decimal $d) -eq 0 ]]; then
+      str=${str: 0 : i }'\0'${str: i}
+      echo str=$str >>temp
+    fi
+  done
+
+  printf "$str" >>$file
+  echo -n $str
 }
 
 function decimal_to_bin()
@@ -209,16 +276,39 @@ function padding_message_with_spaces()
   eval str="$1"
   str_len=${#str}
 
-  mod=$(( $str_len % 8 ))
+  mod=$(( $str_len % 64 ))
   if [[ $mod -ne 0 ]]; then
-    pad=$(( 8 - $mod ))
-
-    for (( i=0 ; i<$pad ; i++))
+    for (( i=$mod ; i<64 ; i+=8))
     do
-      str+=" "
+      str+="00100000"
     done
   fi
   echo "${str}"
+}
+
+function read_from_file()
+{
+  in=$1
+  str=`cat $in`
+
+  arr=()
+  count=0
+  while read -n 1 byte; do
+    ord=$(printf "%b" "${byte:-\000}" | od -t x1 | { read offset hex; echo $hex; })
+    arr+=($ord)
+  done < $in
+
+  for ord in "${arr[@]}"
+  do
+    echo "0x$ord">>temp
+    if [[ "0x$ord" -eq 0x00 ]]; then
+      str=${str:0:count}'\0'${str:count}
+      echo "in if $str" >>temp
+    fi
+    count=$(( $count + 1 ))
+  done
+
+  echo "$str"
 }
 
 action=$1
@@ -275,32 +365,34 @@ done
 #echo ${k_perm_arr[@]}
 
 #############Starting to encrypt/decrypt the message###################################
-file_str=`cat $input_file`
+#file_str=`cat $input_file`
+if [[ $action == "-e" ]]; then
+  file_str=$( cat $input_file )
+else
+  file_str=$(read_from_file "$input_file")
+fi
+
+
 echo file_str=$file_str
 file_str_len=${#file_str}
 echo file_str_len=$file_str_len
-message=$(string_w_spaces_to_bin "\${file_str}")
-echo message=$message
-file_str=$(padding_message_with_spaces "\${file_str}")
-file_str_len=${#file_str}
+full_message=$(string_w_spaces_to_bin "\${file_str}")
+echo full_message=$full_message
+full_message=$(padding_message_with_spaces $full_message)
+full_message_len=${#full_message}
 
-if [[ $(( $file_str_len % 8 )) -ne 0 ]]; then
-  echo padding operation failed.
-  exit 1
-fi
-
-num_blocks=$(( $file_str_len / 8 ))
+#if [[ $(( $file_str_len % 8 )) -ne 0 ]]; then
+#  echo padding operation failed.
+#  exit 1
+#fi
+num_blocks=$(( $full_message_len / 64 ))
 echo num_blocks=$num_blocks
 
 for (( block=1 ; block<=$num_blocks ; block++ ))
 do
   echo processing block \#$block out of $num_blocks...
-  block_index=$(( $(( $block - 1 )) * 8 ))
-  #curr_message="$(expr substr "$file_str" $block_index 8)"
-  curr_message="${file_str:block_index:8}"
-  echo curr_message=$curr_message
-  echo len_crr_message=${#curr_message}
-  message=$(string_w_spaces_to_bin "\${curr_message}")
+  block_index=$(( $(( $block - 1 )) * 64 ))
+  message="${full_message:block_index:64}"
   echo message=$message
   echo m_len=${#message}
 
@@ -423,9 +515,8 @@ do
   done
 
   echo proc_m=$proc_m
-  proc_m_str=$(bin_to_string $proc_m)
+  proc_m_str=$(bin_to_string_save_to_file $proc_m $out_file)
   echo proc_m_str=$proc_m_str
-  echo proc_m_str_len=${proc_m_str}
-  printf "$proc_m_str">>$out_file
+  echo proc_m_str_len=${#proc_m_str}
 
 done
