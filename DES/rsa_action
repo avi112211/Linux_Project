@@ -1,0 +1,47 @@
+#!/bin/bash
+
+function calculate_prime_number()
+{
+  is_prime=false
+  prime=-1
+
+  while [ "$is_prime" = false ]
+  do
+    is_prime=true
+    prime=$( shuf -i 1000000-9999999 -n 1 )
+    half_prime=$(( $prime / 2 + 1 ))
+
+    for (( i=2 ; i < $half_prime ; i++ ))
+    do
+      m=$(( $prime % $i ))
+      if [[ $m -eq 0 ]]; then
+        is_prime=false
+        break
+      fi
+    done
+  done
+
+  echo $prime
+}
+
+#prime1=7075183
+#prime2=2191951
+
+echo calculating first prime number
+prime1=$( calculate_prime_number )
+prime2=-1
+
+echo calculating second prime number
+
+is_dif=false
+while [ "$is_dif" = false ]
+do
+  is_dif=true
+  prime2=$( calculate_prime_number )
+  if [[ $prime2 -eq $prime1 ]]; then
+    is_dif=false
+  fi
+done
+
+echo $prime1
+echo $prime2
