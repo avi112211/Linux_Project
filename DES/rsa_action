@@ -1,11 +1,25 @@
 #!/bin/bash
-
+count=0
 function string_to_dec()
 {
-  bin=$(echo $1 | perl -pe '$_=unpack"B*"')
-  echo $bin
+  eval ch="$1"
+  if [[ $ch = " " ]]; then
+    echo 32
+    exit
+  fi
+
+  bin=$(echo -n $ch | perl -pe '$_=unpack"B*"')
+  echo $bin >>temp
   echo "$((2#$bin))"
 }
+
+function dec_to_string()
+{
+  echo $1-count=$count >>temp
+  count=$(( $count+1 ))
+  printf "\x$(printf %x $1)"
+}
+
 
 function calculate_prime_number()
 {
@@ -49,6 +63,27 @@ function find_e()
   echo $e
 }
 
+function find_d()
+{
+  phi=$1
+  e=$2
+  found=false
+  k=1
+  d=$(( ($phi + 1) / $e))
+  while [ "$found" = false ]
+  do
+    d_temp=$(( ($phi * $k) + 1))
+    if [[ $(( $d_temp % $e )) -eq 0 ]]; then
+      d=$(( $d_temp / $e ))
+      found=true
+    else
+      k=$(( $k + 1 ))
+    fi
+  done
+
+  echo $d
+}
+
 function gcd()
 {
   e=$1
@@ -66,6 +101,45 @@ function gcd()
     e=$phi;
     phi=$temp;
   done
+}
+
+
+function pow_mod()
+{
+  base=$1
+  exp=$2
+  n=$3
+
+  result=1
+  while [ $exp -gt 0 ]
+  do
+    if [[ $(( $exp % 2 )) -eq 1 ]];then
+      result=$(( $(( $result * $base)) % $n))
+    fi
+    base=$(( $(( $base * $base )) % $n ))
+    exp=$(( $exp / 2 ))
+  done
+  result=$(( $result % $n ))
+  echo $result
+}
+
+
+function action_message_arr_char_by_char()
+{
+  e=$1
+  n=$2
+  m_arr=("$@")
+  #unstting pow and mod params from s_box arry:
+  unset m_arr[0]
+  unset m_arr[1]
+  m_arr=("${m_arr[@]}")
+
+  for num in "${m_arr[@]}"
+  do
+    m_e_arr+=($(pow_mod $num $e $n))
+  done
+
+  echo "${m_e_arr[@]}"
 }
 
 #prime1=7075183
@@ -108,6 +182,35 @@ e=$(find_e $phi)
 echo e=$e
 
 #private key
-d=$(( ($phi + 1) / $e))
+d=$(find_d $phi $e)
 echo d=$d
-string_to_dec "h"
+
+message="hi my name is linux"
+
+#split message to array
+i=0
+while [ $i -lt ${#message} ]
+do
+  ch="${message:$i:1}"
+  echo \"$ch\"
+  message_arr[$i]=$(string_to_dec "\${ch}")
+  i=$((i+1))
+done
+
+echo mes_arr=${message_arr[@]}
+
+e_m_arr=$(action_message_arr_char_by_char $e $n ${message_arr[@]})
+echo e_m_arr=${e_m_arr[@]}
+
+d_m_arr=$(action_message_arr_char_by_char $d $n ${e_m_arr[@]})
+echo d_m_arr=${d_m_arr[@]}
+
+str=
+for num in ${d_m_arr[@]}
+do
+  dec_to_string "${num}"
+  #str+=$(dec_to_string "${num}")
+done
+echo
+
+#echo d_arr=${d_arr[@]}
