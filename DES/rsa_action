@@ -1,5 +1,12 @@
 #!/bin/bash
 
+function string_to_dec()
+{
+  bin=$(echo $1 | perl -pe '$_=unpack"B*"')
+  echo $bin
+  echo "$((2#$bin))"
+}
+
 function calculate_prime_number()
 {
   is_prime=false
@@ -24,9 +31,50 @@ function calculate_prime_number()
   echo $prime
 }
 
+function find_e()
+{
+  phi=$1
+  e=2
+
+  while [ $e -lt $phi ]
+  do
+    gcd=$(gcd $e $phi)
+    if [[ $gcd -eq 1 ]]; then
+      break
+    else
+      e=$(( $e + 1 ))
+    fi
+  done
+
+  echo $e
+}
+
+function gcd()
+{
+  e=$1
+  phi=$2
+  temp=-1
+
+  while true
+  do
+    temp=$(( e % $phi))
+    if [[ $temp -eq 0 ]]; then
+      echo $phi
+      break
+    fi
+
+    e=$phi;
+    phi=$temp;
+  done
+}
+
 #prime1=7075183
 #prime2=2191951
 
+prime1=11
+prime2=17
+
+: <<'COMMENT'
 echo calculating first prime number
 prime1=$( calculate_prime_number )
 prime2=-1
@@ -42,6 +90,24 @@ do
     is_dif=false
   fi
 done
+COMMENT
 
-echo $prime1
-echo $prime2
+echo prime1=$prime1
+echo prime2=$prime2
+
+#e & n for private key
+n=$(( $prime1 * $prime2 ))
+echo n=$n
+
+# Find the Totient of ProductOfPrime1Prime2
+phi=$(( ($prime1 - 1) * ($prime2 - 1) ))
+echo phi=$phi
+
+#gcd
+e=$(find_e $phi)
+echo e=$e
+
+#private key
+d=$(( ($phi + 1) / $e))
+echo d=$d
+string_to_dec "h"
