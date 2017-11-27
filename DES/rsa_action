@@ -13,11 +13,19 @@ function string_to_dec()
   echo "$((2#$bin))"
 }
 
+function bin_to_dec()
+{
+  eval ch="$1"
+  echo bin=$ch>>temp
+  echo "$((2#$ch))"
+}
+
 function dec_to_string()
 {
+  output_file=$2
   echo $1-count=$count >>temp
   count=$(( $count+1 ))
-  printf "\x$(printf %x $1)"
+  printf "\x$(printf %x $1)">>$output_file
 }
 
 
@@ -103,7 +111,6 @@ function gcd()
   done
 }
 
-
 function pow_mod()
 {
   base=$1
@@ -113,16 +120,17 @@ function pow_mod()
   result=1
   while [ $exp -gt 0 ]
   do
-    if [[ $(( $exp % 2 )) -eq 1 ]];then
-      result=$(( $(( $result * $base)) % $n))
+    if [[ $(bc <<< "scale=0;$exp%2") -eq 1 ]];then
+      result=$(bc <<< "scale=2;$result*$base")
+      result=$(bc <<< "scale=0;$result%$n")
     fi
-    base=$(( $(( $base * $base )) % $n ))
+    base=$(bc <<< "scale=2;$base*$base")
+    base=$(bc <<< "scale=0;$base%$n")
     exp=$(( $exp / 2 ))
   done
-  result=$(( $result % $n ))
+  result=$(bc <<< "scale=0;$result%$n")
   echo $result
 }
-
 
 function action_message_arr_char_by_char()
 {
@@ -142,11 +150,68 @@ function action_message_arr_char_by_char()
   echo "${m_e_arr[@]}"
 }
 
-#prime1=7075183
-#prime2=2191951
+function read_from_file()
+{
+  in=$1
+  str=`cat $in`
 
-prime1=11
-prime2=17
+  arr=()
+  count=0
+  while read -n 1 byte; do
+    ord=$(printf "%b" "${byte:-\000}" | od -t x1 | { read offset hex; echo $hex; })
+    arr+=($ord)
+  done < $in
+
+  for ord in "${arr[@]}"
+  do
+    echo ord="0x$ord">>temp
+    if [[ "0x$ord" -eq 0x00 ]]; then
+      str=${str:0:count}'\0'${str:count}
+      echo "in if $str" >>temp
+    fi
+    count=$(( $count + 1 ))
+  done
+
+  echo "$str"
+}
+
+function string_w_spaces_to_bin()
+{
+  eval str="$1"
+  echo string_w_spaces_to_bin_str=$str>>temp
+  str_tr=${str/"\0"/""}
+  echo string_w_spaces_to_bin_str_tr=$str_tr>>temp
+
+  bin=$(echo -n "${str_tr}" | perl -pe '$_=unpack"B*"')
+
+  str_len=$(printf "$str" | wc -c)
+  echo str=$str>>temp
+  echo str_len=$str_len >>temp
+  for (( i=0 ; i<$str_len ; i++ ))
+  do
+    ch=${str:i:2}
+    echo ch=$ch >>temp
+    if [[ $ch == "\0" ]]; then
+      start=$(( $i * 8 ))
+      bin=${bin:0:start}"00000000"${bin:start}
+    fi
+  done
+
+  printf "$bin"
+}
+
+message=`cat $1`
+output_file=$2
+echo -n >$output_file
+#message="hi my name is linux!@#"
+message=$(string_w_spaces_to_bin "\${message}")
+
+prime1=7075183
+prime2=2191951
+
+
+#prime1=7
+#prime2=31
 
 : <<'COMMENT'
 echo calculating first prime number
@@ -183,20 +248,18 @@ echo e=$e
 
 #private key
 d=$(find_d $phi $e)
+#d=$(( ($phi + 1) / $e))
 echo d=$d
-
-message="hi my name is linux"
 
 #split message to array
 i=0
 while [ $i -lt ${#message} ]
 do
-  ch="${message:$i:1}"
-  echo \"$ch\"
-  message_arr[$i]=$(string_to_dec "\${ch}")
-  i=$((i+1))
+  ch=${message:$i:8}
+  #echo \"$ch\"
+  message_arr[$i]=$(bin_to_dec $ch)
+  i=$((i+8))
 done
-
 echo mes_arr=${message_arr[@]}
 
 e_m_arr=$(action_message_arr_char_by_char $e $n ${message_arr[@]})
@@ -208,7 +271,7 @@ echo d_m_arr=${d_m_arr[@]}
 str=
 for num in ${d_m_arr[@]}
 do
-  dec_to_string "${num}"
+  dec_to_string "${num}" $output_file
   #str+=$(dec_to_string "${num}")
 done
 echo
