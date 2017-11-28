@@ -200,80 +200,87 @@ function string_w_spaces_to_bin()
   printf "$bin"
 }
 
-message=`cat $1`
-output_file=$2
-echo -n >$output_file
-#message="hi my name is linux!@#"
-message=$(string_w_spaces_to_bin "\${message}")
-
-prime1=7075183
-prime2=2191951
+action=$1
+in_file=$2
+output_file=$3
+key_file=$4
 
 
-#prime1=7
-#prime2=31
+if [[ $action == "-g" ]]; then
+  echo calculating first prime number
+  prime1=$( calculate_prime_number )
+  prime2=-1
 
-: <<'COMMENT'
-echo calculating first prime number
-prime1=$( calculate_prime_number )
-prime2=-1
+  echo calculating second prime number
 
-echo calculating second prime number
+  is_dif=false
+  while [ "$is_dif" = false ]
+  do
+    is_dif=true
+    prime2=$( calculate_prime_number )
+    if [[ $prime2 -eq $prime1 ]]; then
+      is_dif=false
+    fi
+  done
 
-is_dif=false
-while [ "$is_dif" = false ]
-do
-  is_dif=true
-  prime2=$( calculate_prime_number )
-  if [[ $prime2 -eq $prime1 ]]; then
-    is_dif=false
-  fi
-done
-COMMENT
 
-echo prime1=$prime1
-echo prime2=$prime2
+  #echo prime1=$prime1
+  #echo prime2=$prime2
 
-#e & n for private key
-n=$(( $prime1 * $prime2 ))
-echo n=$n
+  #e & n for public key
+  n=$(( $prime1 * $prime2 ))
+  echo n=$n
 
-# Find the Totient of ProductOfPrime1Prime2
-phi=$(( ($prime1 - 1) * ($prime2 - 1) ))
-echo phi=$phi
+  # Find the Totient of ProductOfPrime1Prime2
+  phi=$(( ($prime1 - 1) * ($prime2 - 1) ))
+  echo phi=$phi
 
-#gcd
-e=$(find_e $phi)
-echo e=$e
+  #gcd
+  e=$(find_e $phi)
+  echo "$e $n">$in_file
 
-#private key
-d=$(find_d $phi $e)
-#d=$(( ($phi + 1) / $e))
-echo d=$d
+  #d & n private key
+  d=$(find_d $phi $e)
+  #d=$(( ($phi + 1) / $e))
+  echo "$d $n">$output_file
+fi
 
 #split message to array
-i=0
-while [ $i -lt ${#message} ]
-do
-  ch=${message:$i:8}
-  #echo \"$ch\"
-  message_arr[$i]=$(bin_to_dec $ch)
-  i=$((i+8))
-done
-echo mes_arr=${message_arr[@]}
+if [[ $action == "-e" ]]; then
+  keys=(`cat $key_file`)
+  message=`cat $in_file`
 
-e_m_arr=$(action_message_arr_char_by_char $e $n ${message_arr[@]})
-echo e_m_arr=${e_m_arr[@]}
+  e=${keys[0]}
+  n=${keys[1]}
+  message=$(string_w_spaces_to_bin "\${message}")
+  echo -n >$output_file #init the out file
 
-d_m_arr=$(action_message_arr_char_by_char $d $n ${e_m_arr[@]})
-echo d_m_arr=${d_m_arr[@]}
+  i=0
+  while [ $i -lt ${#message} ]
+  do
+    ch=${message:$i:8}
+    message_arr[$i]=$(bin_to_dec $ch)
+    i=$((i+8))
+  done
 
-str=
-for num in ${d_m_arr[@]}
-do
-  dec_to_string "${num}" $output_file
-  #str+=$(dec_to_string "${num}")
-done
-echo
+  e_m_arr=$(action_message_arr_char_by_char $e $n ${message_arr[@]})
+  echo ${e_m_arr[@]}>$output_file
+fi
 
+if [[ $action == "-d" ]]; then
+  keys=(`cat $key_file`)
+  message=(`cat $in_file`)
+  echo -n >$output_file #init the out file
+
+  d=${keys[0]}
+  n=${keys[1]}
+
+  d_m_arr=$(action_message_arr_char_by_char $d $n ${message[@]})
+
+  for num in ${d_m_arr[@]}
+  do
+    dec_to_string "${num}" $output_file
+  done
+  echo >>$output_file
+fi
 #echo d_arr=${d_arr[@]}

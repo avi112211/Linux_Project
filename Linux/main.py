@@ -47,7 +47,7 @@ class windowClass(wx.Frame):
         panel = wx.Panel(self)
 
         #title
-        titleText = wx.StaticText(panel, -1, "Encryption Tool", (200, 12))
+        titleText = wx.StaticText(panel, -1, "DES Encryption Tool", (170, 12))
         font = wx.Font(26, wx.DECORATIVE, wx.NORMAL, wx.BOLD)
         titleText.SetFont(font)
 
@@ -166,7 +166,7 @@ class windowClass(wx.Frame):
         inputFile = self.inputFileText.GetValue()
         key = self.keyText.GetValue()
         outputFile = self.outPutFileText.GetValue()
-        command = '../DES/des_action ' + action + inputFile + ' ' + key + ' ' + outputFile
+        command = '../DES/des_action ' + action + ' ' + key  + ' ' + inputFile + ' ' + outputFile
         print command
         # t = myThred('../DES/des_action', action, key, inputFile, outputFile)
         t = threading.Thread(target=self.shellScript, args=("../DES/des_action", action, key, inputFile, outputFile))
@@ -177,6 +177,6 @@ class windowClass(wx.Frame):
         # call(['../DES/des_action', action, str(key), str(inputFile), str(outputFile)])
 
 app = wx.App()
-windowClass(None, title='des+rsa')
+windowClass(None, title='DES Encryption Tool')
 
 app.MainLoop()
