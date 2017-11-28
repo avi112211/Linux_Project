@@ -2,11 +2,12 @@ import threading
 import wx
 from wx.lib import sized_controls
 from subprocess import call
+from wx.lib.pubsub import pub
 
-class CustomDialog(sized_controls.SizedDialog):
+class ProcessingDialog(sized_controls.SizedDialog):
 
     def __init__(self, *args, **kwargs):
-        super(CustomDialog, self).__init__(*args, **kwargs)
+        super(ProcessingDialog, self).__init__(*args, **kwargs)
         pane = self.GetContentsPane()
         self.SetSize((350, 140))
 
@@ -14,31 +15,43 @@ class CustomDialog(sized_controls.SizedDialog):
         font = wx.Font(16, wx.DEFAULT, wx.NORMAL, wx.BOLD)
         msg.SetFont(font)
 
-class myThred(threading.Thread):
+class OperationcompletedDialog(wx.Dialog):
 
-    command = ""
-    action = ""
-    key = ""
-    inputFile = ""
-    outputFile = ""
-    def __init__(self, command, action, key, inputFile, outputFile):
-        self.command = command
-        self.action = action
-        self.key = key
-        self.inputFile = inputFile
-        self.outputFile = outputFile
-        threading.Thread.__init__(self)
-        self.daemon = True
+    fileLoc = ""
+    def __init__(self, parent, id, fileLoc):
+        super(OperationcompletedDialog, self).__init__(parent, id, "Operation completed", size=(350, 150))
+        self.fileLoc = fileLoc
+        panel = wx.Panel(self)
 
-    def run(self):
-        call([self.command, self.action, str(self.key), str(self.inputFile), str(self.outputFile)])
-        print("####################### thread done #########################")
+        msg = wx.StaticText(panel, -1, "Operation completed", (60, 10))
+        font = wx.Font(14, wx.DEFAULT, wx.NORMAL, wx.BOLD)
+        msg.SetFont(font)
+
+        #open file
+        openFileButton = wx.Button(panel, label="Open File", pos=(70, 60), size=(80, 35))
+        self.Bind(wx.EVT_BUTTON, self.openFileOnClick, openFileButton)
+
+        #close button
+        closeButton = wx.Button(panel, label="close", pos=(200, 60), size=(80, 35))
+        self.Bind(wx.EVT_BUTTON, self.closeOnClick, closeButton)
+
+    def openFileOnClick(self,event):
+        t = threading.Thread(target=self.openGedit, args=())
+        t.start()
+        self.Close()
+
+    def closeOnClick(self, event):
+        self.Close()
+
+    def openGedit(self):
+        call(['gedit', str(self.fileLoc)])
 
 class windowClass(wx.Frame):
 
     dlg = ""
+    outputFile = ""
     def __init__(self, parent, title):
-        super(windowClass, self).__init__(parent, title=title,size = (650,350), style = wx.CLOSE_BOX | wx.MINIMIZE_BOX | wx.CAPTION)
+        super(windowClass, self).__init__(parent, title=title, size=(650, 350), style=wx.CLOSE_BOX | wx.MINIMIZE_BOX | wx.CAPTION)
         self.Center()
         self.Show()
         self.buildUi()
@@ -87,6 +100,8 @@ class windowClass(wx.Frame):
         decryptKeyButton = wx.Button(panel, label="Decrypt", pos=(470, 235), size=(80, 50))
         self.Bind(wx.EVT_BUTTON, self.decryptOnClick, decryptKeyButton)
 
+        pub.subscribe(self.operationDone, "op_done")
+
     def inputBrowseOnClick(self, event):
         openFileDialog = wx.FileDialog(self, "Choose file", "", "", "", style=wx.FD_OPEN | wx.FD_FILE_MUST_EXIST)
         if openFileDialog.ShowModal() == wx.ID_OK:
@@ -130,9 +145,8 @@ class windowClass(wx.Frame):
         openFileDialog.Destroy()
 
         if flag:
-            dlg = wx.MessageDialog(self, "Operation completed", 'Operation completed', wx.OK | wx.ICON_INFORMATION)
+            dlg = OperationcompletedDialog(self, -1, loc)
             dlg.ShowModal()
-            dlg.Destroy()
 
     def decryptOnClick(self, event):
         print("decryptOnClick")
@@ -151,32 +165,29 @@ class windowClass(wx.Frame):
         dlg.ShowModal()
         dlg.Destroy()
 
-    def operationDone(self):
-        self.dlg.Destroy()
-        dlg = wx.MessageDialog(self, "Operation completed", 'Operation completed', wx.OK | wx.ICON_INFORMATION)
+    def operationDone(self, loc):
+        self.dlg.Close()
+        dlg = OperationcompletedDialog(self, -1, loc)
         dlg.ShowModal()
-        dlg.Destroy()
 
     def shellScript(self, command, action, key, inputFile, outputFile):
         call([command, str(action), str(key), str(inputFile), str(outputFile)])
+        wx.CallAfter(pub.sendMessage, "op_done", loc=outputFile)
         print("####################### thread done #########################")
-        wx.CallAfter(self.operationDone)
+        #wx.CallAfter(self.operationDone)
 
     def encryptDecrypt(self, action):
         inputFile = self.inputFileText.GetValue()
         key = self.keyText.GetValue()
-        outputFile = self.outPutFileText.GetValue()
-        command = '../DES/des_action ' + action + inputFile + ' ' + key + ' ' + outputFile
+        self.outputFile = self.outPutFileText.GetValue()
+        command = '../DES/des_action ' + action + inputFile + ' ' + key + ' ' + self.outputFile
         print command
         # t = myThred('../DES/des_action', action, key, inputFile, outputFile)
-        t = threading.Thread(target=self.shellScript, args=("../DES/des_action", action, key, inputFile, outputFile))
+        t = threading.Thread(target=self.shellScript, args=("../DES/des_action", action, key, inputFile, self.outputFile))
         t.start()
-        self.dlg = CustomDialog(self, title='Working')
+        self.dlg = ProcessingDialog(self, title='Working')
         self.dlg.ShowModal()
-
-        # call(['../DES/des_action', action, str(key), str(inputFile), str(outputFile)])
 
 app = wx.App()
 windowClass(None, title='des+rsa')
-
 app.MainLoop()
