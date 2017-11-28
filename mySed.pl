@@ -26,17 +26,6 @@ if($str eq ""){
   $file = $ARGV[1];
 }
 
-=pod
-@parts = split(/\//, $sed, -1);
-print("\n@parts\n");
-print("\n$#parts\n");
-#check for 'sed' syntax
-if($#parts < 2 || $#parts > 3){
-  print("Error -2- in command\n");
-  exit;
-}
-=cut
-
 switch($firstPart){
    case "s"          { sFunction() }
    else              { print("Error -3- in command\n"); exit; }
