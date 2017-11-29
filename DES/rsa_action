@@ -9,21 +9,21 @@ function string_to_dec()
   fi
 
   bin=$(echo -n $ch | perl -pe '$_=unpack"B*"')
-  echo $bin >>temp
+  #echo $bin >>temp
   echo "$((2#$bin))"
 }
 
 function bin_to_dec()
 {
   eval ch="$1"
-  echo bin=$ch>>temp
+  #echo bin=$ch>>temp
   echo "$((2#$ch))"
 }
 
 function dec_to_string()
 {
   output_file=$2
-  echo $1-count=$count >>temp
+  #echo $1-count=$count >>temp
   count=$(( $count+1 ))
   printf "\x$(printf %x $1)">>$output_file
 }
@@ -164,10 +164,10 @@ function read_from_file()
 
   for ord in "${arr[@]}"
   do
-    echo ord="0x$ord">>temp
+    #echo ord="0x$ord">>temp
     if [[ "0x$ord" -eq 0x00 ]]; then
       str=${str:0:count}'\0'${str:count}
-      echo "in if $str" >>temp
+      #echo "in if $str" >>temp
     fi
     count=$(( $count + 1 ))
   done
@@ -178,19 +178,19 @@ function read_from_file()
 function string_w_spaces_to_bin()
 {
   eval str="$1"
-  echo string_w_spaces_to_bin_str=$str>>temp
+  #echo string_w_spaces_to_bin_str=$str>>temp
   str_tr=${str/"\0"/""}
-  echo string_w_spaces_to_bin_str_tr=$str_tr>>temp
+  #echo string_w_spaces_to_bin_str_tr=$str_tr>>temp
 
   bin=$(echo -n "${str_tr}" | perl -pe '$_=unpack"B*"')
 
   str_len=$(printf "$str" | wc -c)
-  echo str=$str>>temp
-  echo str_len=$str_len >>temp
+  #echo str=$str>>temp
+  #echo str_len=$str_len >>temp
   for (( i=0 ; i<$str_len ; i++ ))
   do
     ch=${str:i:2}
-    echo ch=$ch >>temp
+    #echo ch=$ch >>temp
     if [[ $ch == "\0" ]]; then
       start=$(( $i * 8 ))
       bin=${bin:0:start}"00000000"${bin:start}

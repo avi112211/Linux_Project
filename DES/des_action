@@ -104,19 +104,19 @@ function string_to_bin()
 function string_w_spaces_to_bin()
 {
   eval str="$1"
-  echo string_w_spaces_to_bin_str=$str>>temp
+  #echo string_w_spaces_to_bin_str=$str>>temp
   str_tr=${str/"\0"/""}
-  echo string_w_spaces_to_bin_str_tr=$str_tr>>temp
+  #echo string_w_spaces_to_bin_str_tr=$str_tr>>temp
 
   bin=$(echo -n "${str_tr}" | perl -pe '$_=unpack"B*"')
 
-  str_len=$(printf "$str" | wc -c)
-  echo str=$str>>temp
-  echo str_len=$str_len >>temp
+  str_len=$(printf "%s" "$str" | wc -c)
+  #echo str=$str>>temp
+  #echo str_len=$str_len >>temp
   for (( i=0 ; i<$str_len ; i++ ))
   do
     ch=${str:i:2}
-    echo ch=$ch >>temp
+    #echo ch=$ch >>temp
     if [[ $ch == "\0" ]]; then
       start=$(( $i * 8 ))
       bin=${bin:0:start}"00000000"${bin:start}
@@ -132,10 +132,10 @@ function bin_to_string()
   str=$(echo -n "${bin}" | perl -pe '$_=pack"B*",$_')
 
   d=${bin: -8} #get the last char by binary represntation.
-  echo d=$d >> temp
+  #echo d=$d >> temp
   if [[ $(bin_to_decimal $d) -eq 10 ]]; then
     len=${#str}
-    echo len=$len >> temp
+    #echo len=$len >> temp
     for (( i=$len ; i < 8 ; i++ ))
     do
       str+=$'\n'
@@ -153,14 +153,14 @@ function bin_to_string_save_to_file()
 
   #handling newline char in the last place of the string:
   d=${bin: -8} #get the last char by binary represntation.
-  echo d=$d >> temp
+  #echo d=$d >> temp
   if [[ $(bin_to_decimal $d) -eq 10 ]]; then
     len=${#str}
-    echo len=$len >> temp
+    #echo len=$len >> temp
     for (( i=$len ; i < 8 ; i++ ))
     do
       str+=$'\n'
-      echo str_len=${#str} >>temp
+      #echo str_len=${#str} >>temp
     done
   fi
 
@@ -169,14 +169,14 @@ function bin_to_string_save_to_file()
   do
     place=$(( i * 8))
     d="${bin: place : 8 }"
-    echo d=$d >>temp
+    #echo d=$d >>temp
     if [[ $(bin_to_decimal $d) -eq 0 ]]; then
       str=${str: 0 : i }'\0'${str: i}
-      echo str=$str >>temp
+      #echo str=$str >>temp
     fi
   done
 
-  printf "$str" >>$file
+  printf "%s" "$str" >>$file
   echo -n $str
 }
 
@@ -288,6 +288,7 @@ function padding_message_with_spaces()
 
 function read_from_file()
 {
+  #read_from_file() support file reading including \0 in the file.
   in=$1
   str=`cat $in`
 
@@ -300,10 +301,10 @@ function read_from_file()
 
   for ord in "${arr[@]}"
   do
-    echo "0x$ord">>temp
+    #echo "0x$ord">>temp
     if [[ "0x$ord" -eq 0x00 ]]; then
       str=${str:0:count}'\0'${str:count}
-      echo "in if $str" >>temp
+      #echo "in if $str" >>temp
     fi
     count=$(( $count + 1 ))
   done
@@ -366,11 +367,11 @@ done
 
 #############Starting to encrypt/decrypt the message###################################
 #file_str=`cat $input_file`
-if [[ $action == "-e" ]]; then
-  file_str=$( cat $input_file )
-else
-  file_str=$(read_from_file "$input_file")
-fi
+#if [[ $action == "-e" ]]; then
+file_str=$( cat $input_file )
+#else
+  #file_str=$(read_from_file "$input_file")
+#fi
 
 
 echo file_str=$file_str
